@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}
+  Об авторе проекта
+{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-md-8 p-5">
+      <div class="card">
+        <div class="card-header">
+            Автор сайта Yatube
+        </div>
+        <div class="card-body">
+          <p>Привет, меня зовут Зивенко Никита, это мой первый сайт на Django.</p>
+          <p>Мои рабочие столы:</p>
+          <div class="card">
+            <img class="card-img-top" src="{% static 'workdesk.jpg' %}" alt="Рабочее место на работе">
+            <div class="card-body">
+              <p class="card-text">Рабочее место на работе</p>
+            </div>
+          </div>
+          <br>
+          <div class="card">
+            <img class="card-img-top" src="{% static 'homedesk.jpg' %}" alt="Рабочее место дома">
+            <div class="card-body">
+              <p class="card-text">Рабочее место дома</p>
+            </div>
+          </div>
+        </div> 
+      </div> 
+    </div>
+  </div> 
+{% endblock %}
