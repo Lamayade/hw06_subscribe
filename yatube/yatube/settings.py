@@ -114,6 +114,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
+}
+
 NUMBER_OF_LAST_RECORDS = 10
 MAX_GROUP_SELF_TEXT_LENGTH = 30
 MAX_POST_SELF_TEXT_LENGTH = 15

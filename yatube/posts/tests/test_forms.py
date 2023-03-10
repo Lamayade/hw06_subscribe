@@ -1,4 +1,9 @@
-from django.test import Client, TestCase
+import shutil
+import tempfile
+
+from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from posts.forms import PostForm
@@ -6,6 +11,10 @@ from posts.models import Post, Group
 from users.forms import User
 
 
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
+
+
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class TaskCreateFormTests(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -21,13 +30,30 @@ class TaskCreateFormTests(TestCase):
             slug='test-slug2',
             description='Описание тестовой группы 2',
         )
+        small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        cls.uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=small_gif,
+            content_type='image/gif'
+        )
         cls.test_post = Post.objects.create(
             text='Тестовый текст',
             author=cls.user,
             group=cls.test_group1,
         )
-
         cls.form = PostForm()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
         self.authorized_client = Client()
@@ -39,6 +65,7 @@ class TaskCreateFormTests(TestCase):
         form_data = {
             'text': 'Текст поста',
             'group': self.test_group1.id,
+            'image': self.uploaded
         }
         response = self.authorized_client.post(
             reverse('posts:post_create'),
@@ -55,13 +82,14 @@ class TaskCreateFormTests(TestCase):
         self.assertEqual(post.text, form_data['text'])
         self.assertEqual(post.author, self.user)
         self.assertEqual(post.group.id, form_data['group'])
+        self.assertEqual(post.image.size, form_data['image'].size)
 
     def test_posts_edit_post_form_check(self):
         """Check if the valid edit post form is editing an existing post"""
         posts_count = Post.objects.count()
         form_data = {
             'text': 'Текст поста',
-            'group': self.test_group2.id
+            'group': self.test_group2.id,
         }
         response = self.authorized_client.post(
             reverse('posts:post_edit',
@@ -82,12 +110,16 @@ class TaskCreateFormTests(TestCase):
         """Check if form's labels are correct"""
         text_label = self.form.fields['text'].label
         group_label = self.form.fields['group'].label
+        image_label = self.form.fields['image'].label
         self.assertEqual(text_label, 'Новый текст')
         self.assertEqual(group_label, 'Группа записи')
+        self.assertEqual(image_label, 'Картинка')
 
     def test_posts_forms_help_texts_check(self):
         """Check if form's help texts are correct"""
         text_help_text = self.form.fields['text'].help_text
         group_help_text = self.form.fields['group'].help_text
+        image_help_text = self.form.fields['image'].help_text
         self.assertEqual(text_help_text, 'Напишите текст записи')
         self.assertEqual(group_help_text, 'Выберите группу')
+        self.assertEqual(image_help_text, 'Прикрепите картинку')
