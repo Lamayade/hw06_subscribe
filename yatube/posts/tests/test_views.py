@@ -5,7 +5,7 @@ from django.conf import settings
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from posts.models import Group, Post
+from posts.models import Comment, Group, Post
 from users.forms import User
 
 
@@ -210,6 +210,37 @@ class PostPagesTest(TestCase):
                     kwargs={'group_name': self.test_another_group.slug})
         )
         self.assertNotIn(new_test_post, response.context['page_obj'])
+
+    def test_posts_new_post_is_not_on_the_another_group_page(self):
+        """Check if the new post is not on the another group page"""
+        new_test_post = Post.objects.create(
+            text='Новый пост',
+            author=self.non_author,
+            group=self.test_group,
+        )
+        response = self.authorized_client.get(
+            reverse('posts:group_list',
+                    kwargs={'group_name': self.test_another_group.slug})
+        )
+        self.assertNotIn(new_test_post, response.context['page_obj'])
+
+    def test_posts_new_comment_is_on_the_post_detail_page(self):
+        """Check if the new comment is on the post detail page"""
+        new_test_comment = Comment.objects.create(
+            post=self.test_post,
+            text='Новый комментарий',
+            author=self.user,
+        )
+        url = reverse(
+            'posts:add_comment',
+            kwargs={'post_id': self.test_post.id}
+        )
+        response = self.authorized_client.get(url, follow=True)
+        first_comment = response.context['comments'][0]
+        self.assertEqual(first_comment.id, new_test_comment.id)
+        self.assertEqual(first_comment.post, new_test_comment.post)
+        self.assertEqual(first_comment.text, new_test_comment.text)
+        self.assertEqual(first_comment.author, new_test_comment.author)
 
 
 class PostPaginatorTest(TestCase):

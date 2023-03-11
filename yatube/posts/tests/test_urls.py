@@ -119,6 +119,21 @@ class PostPagesURLTests(TestCase):
             self.authorized_client.get(url).status_code, HTTPStatus.OK
         )
 
+    def test_posts_create_comment_is_available_for_authorized(self):
+        """Check if the authorized user can create comment"""
+        url = reverse(
+            'posts:add_comment',
+            kwargs={'post_id': self.test_post.id}
+        )
+        response = self.authorized_client.get(url, follow=True)
+        self.assertRedirects(
+            response,
+            reverse(
+                'posts:post_detail',
+                kwargs={'post_id': self.test_post.id}
+            )
+        )
+
     def test_posts_create_page_redirects_guest_to_login_page(self):
         """Check the guest redirection from post creation page to login page"""
         url = reverse(
