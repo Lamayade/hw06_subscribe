@@ -1,8 +1,9 @@
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import CommentForm, PostForm
-from .models import Group, Post, User
+from .models import Follow, Group, Post, User
 from .utils import get_page
 
 
@@ -25,12 +26,21 @@ def group_list(request, group_name):
 
 
 def profile(request, username):
+    user = request.user
     author = get_object_or_404(User, username=username)
     posts = author.posts.select_related('group')
+    following = (user.is_authenticated
+                 and user.id != author.id
+                 and Follow.objects.filter(
+                     user=user,
+                     author=author,
+                 ).exists()
+                 )
     context = {
         'author': author,
         'page_obj': get_page(request, posts),
         'posts_count': posts.count(),
+        'following': following,
     }
     return render(request, 'posts/profile.html', context)
 
@@ -81,7 +91,6 @@ def post_edit(request, post_id):
 
 @login_required
 def add_comment(request, post_id):
-    # Получите пост и сохраните его в переменную post.
     chosen_post = get_object_or_404(Post, pk=post_id)
     form = CommentForm(request.POST or None)
     if form.is_valid():
@@ -90,3 +99,34 @@ def add_comment(request, post_id):
         comment.post = chosen_post
         comment.save()
     return redirect('posts:post_detail', post_id)
+
+
+@login_required
+def follow_index(request):
+    authors = request.user.follower.values_list('author', flat=True)
+    posts = Post.objects.filter(author__id__in=authors)
+    context = {
+        'posts': posts,
+        'page_obj': get_page(request, posts),
+        'posts_count': posts.count(),
+    }
+    return render(request, 'posts/follow.html', context)
+
+
+@login_required
+def profile_follow(request, username):
+    author = get_object_or_404(User, username=username)
+    user = request.user
+    if user.id != author.id:
+        Follow.objects.create(user=user, author=author)
+    else:
+        messages.error(request, 'Нельзя подписаться на самого себя')
+    return redirect('posts:profile', username)
+
+
+@login_required
+def profile_unfollow(request, username):
+    author = get_object_or_404(User, username=username)
+    user = request.user
+    Follow.objects.filter(user=user, author=author).delete()
+    return redirect('posts:profile', username)

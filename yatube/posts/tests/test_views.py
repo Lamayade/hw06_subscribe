@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from posts.models import Comment, Group, Post
+from posts.models import Comment, Follow, Group, Post
 from users.forms import User
 
 
@@ -282,6 +282,61 @@ class PostPagesTest(TestCase):
         self.assertEqual(first_comment.author, new_test_comment.author)
 
 
+class FollowPagesTest(TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.author1 = User.objects.create_user(username='First author')
+        cls.author2 = User.objects.create_user(username='Second author')
+        cls.subscriber = User.objects.create_user(username='Subscriber')
+        cls.test_post = Post.objects.create(
+            text='Тестовый текст',
+            author=cls.author1,
+        )
+        cls.test_another_post = Post.objects.create(
+            text='Текст второго поста',
+            author=cls.author2,
+        )
+
+    def setUp(self) -> None:
+        self.subscriber_client = Client()
+        self.subscriber_client.force_login(self.subscriber)
+
+    def test_posts_authorized_user_can_follow_and_unfollow(self):
+        """Check if subscriber can follow and unfollow_author"""
+        Follow.objects.create(
+            user=self.subscriber,
+            author=self.author1,
+        )
+        response = self.subscriber_client.get(
+            reverse('posts:follow_index')
+        )
+        self.assertIn(self.test_post, response.context['page_obj'])
+        Follow.objects.filter(
+            user=self.subscriber,
+            author=self.author1,
+        ).delete()
+        response = self.subscriber_client.get(
+            reverse('posts:follow_index')
+        )
+        self.assertNotIn(self.test_post, response.context['page_obj'])
+
+    def test_posts_new_post_is_shown_only_to_followers(self):
+        """Check if subscriber can't see posts from unsubscribed authors"""
+        Follow.objects.create(
+            user=self.subscriber,
+            author=self.author1,
+        )
+        response = self.subscriber_client.get(
+            reverse('posts:follow_index')
+        )
+        self.assertNotIn(self.test_another_post, response.context['page_obj'])
+        Follow.objects.filter(
+            user=self.subscriber,
+            author=self.author1,
+        ).delete()
+
+
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class PostPaginatorTest(TestCase):
     @classmethod
@@ -404,6 +459,24 @@ class PostPaginatorTest(TestCase):
         self.assertEqual(
             len(response.context['page_obj']),
             settings.NUMBER_OF_LAST_RECORDS
+        )
+
+    def test_posts_profile_page_has_correct_number_of_last_records(self):
+        """Check paginator:the last profile page has correct number of posts"""
+        all_profile_posts_number = Post.objects.filter(
+            author=self.user
+        ).select_related(
+            'author'
+        ).count()
+        response = self.authorized_client.get(
+            reverse(
+                'posts:profile',
+                kwargs={'username': self.user.username}
+            ) + f'?page={self.last_page_number(all_profile_posts_number)}'
+        )
+        self.assertEqual(
+            len(response.context['page_obj']),
+            self.last_page_records_number(all_profile_posts_number)
         )
 
     def test_posts_profile_page_has_correct_number_of_last_records(self):
