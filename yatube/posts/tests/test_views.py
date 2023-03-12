@@ -1,14 +1,21 @@
 import math
+import shutil
+import tempfile
 
 from django import forms
 from django.conf import settings
-from django.test import Client, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from posts.models import Comment, Group, Post
 from users.forms import User
 
 
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
+
+
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class PostPagesTest(TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -20,10 +27,24 @@ class PostPagesTest(TestCase):
             description='Описание тестовой группы',
             slug='test-slug',
         )
+        small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        cls.uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=small_gif,
+            content_type='image/gif'
+        )
         cls.test_post = Post.objects.create(
             text='Тестовый текст',
             author=cls.user,
             group=cls.test_group,
+            image=cls.uploaded
         )
         cls.test_another_group = Group.objects.create(
             title='Заголовок второй группы',
@@ -34,7 +55,13 @@ class PostPagesTest(TestCase):
             text='Текст второго поста',
             author=cls.user,
             group=cls.test_another_group,
+            image=cls.uploaded
         )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self) -> None:
         self.authorized_client = Client()
@@ -76,6 +103,7 @@ class PostPagesTest(TestCase):
         self.assertEqual(first_object.text, self.test_another_post.text)
         self.assertEqual(first_object.group, self.test_another_post.group)
         self.assertEqual(first_object.author, self.test_another_post.author)
+        self.assertEqual(first_object.image, self.test_another_post.image)
 
     def test_posts_group_list_page_shows_correct_context(self):
         """Check the context of the group list page"""
@@ -88,6 +116,7 @@ class PostPagesTest(TestCase):
         self.assertEqual(first_object.text, self.test_post.text)
         self.assertEqual(first_object.group, self.test_post.group)
         self.assertEqual(first_object.author, self.test_post.author)
+        self.assertEqual(first_object.image, self.test_post.image)
         group_object = response.context['group']
         self.assertEqual(group_object.title, self.test_group.title)
         self.assertEqual(group_object.description,
@@ -105,6 +134,7 @@ class PostPagesTest(TestCase):
         self.assertEqual(first_object.text, self.test_another_post.text)
         self.assertEqual(first_object.group, self.test_another_post.group)
         self.assertEqual(first_object.author, self.test_another_post.author)
+        self.assertEqual(first_object.image, self.test_another_post.image)
         author_object = response.context['author']
         self.assertEqual(author_object.id, self.user.id)
         self.assertEqual(author_object.username, self.user.username)
@@ -120,6 +150,7 @@ class PostPagesTest(TestCase):
         self.assertEqual(post_object.text, self.test_post.text)
         self.assertEqual(post_object.group, self.test_post.group)
         self.assertEqual(post_object.author, self.test_post.author)
+        self.assertEqual(post_object.image, self.test_post.image)
 
     def test_posts_create_post_page_shows_correct_context(self):
         """Check the context of the post create page"""
@@ -129,6 +160,7 @@ class PostPagesTest(TestCase):
         form_fields = {
             'text': forms.fields.CharField,
             'group': forms.fields.ChoiceField,
+            'image': forms.fields.ImageField,
         }
         for value, expected in form_fields.items():
             with self.subTest(value=value):
@@ -144,6 +176,7 @@ class PostPagesTest(TestCase):
         form_fields = {
             'text': forms.fields.CharField,
             'group': forms.fields.ChoiceField,
+            'image': forms.fields.ImageField,
         }
         for value, expected in form_fields.items():
             with self.subTest(value=value):
@@ -163,6 +196,7 @@ class PostPagesTest(TestCase):
         self.assertEqual(first_object.text, new_test_post.text)
         self.assertEqual(first_object.group, new_test_post.group)
         self.assertEqual(first_object.author, new_test_post.author)
+        self.assertEqual(first_object.image, new_test_post.image)
 
     def test_posts_new_post_is_on_the_group_page(self):
         """Check if the new post is on the group page"""
@@ -180,6 +214,7 @@ class PostPagesTest(TestCase):
         self.assertEqual(first_object.text, new_test_post.text)
         self.assertEqual(first_object.group, new_test_post.group)
         self.assertEqual(first_object.author, new_test_post.author)
+        self.assertEqual(first_object.image, new_test_post.image)
 
     def test_posts_new_post_is_on_the_profile_page(self):
         """Check if the new post is on the profile page"""
@@ -187,6 +222,7 @@ class PostPagesTest(TestCase):
             text='Новый пост',
             author=self.user,
             group=self.test_group,
+            image=self.uploaded,
         )
         response = self.authorized_client.get(
             reverse('posts:profile',
@@ -197,6 +233,7 @@ class PostPagesTest(TestCase):
         self.assertEqual(first_object.text, new_test_post.text)
         self.assertEqual(first_object.group, new_test_post.group)
         self.assertEqual(first_object.author, new_test_post.author)
+        self.assertEqual(first_object.image, new_test_post.image)
 
     def test_posts_new_post_is_not_on_the_another_group_page(self):
         """Check if the new post is not on the another group page"""
@@ -204,6 +241,7 @@ class PostPagesTest(TestCase):
             text='Новый пост',
             author=self.non_author,
             group=self.test_group,
+            image=self.uploaded,
         )
         response = self.authorized_client.get(
             reverse('posts:group_list',
@@ -217,6 +255,7 @@ class PostPagesTest(TestCase):
             text='Новый пост',
             author=self.non_author,
             group=self.test_group,
+            image=self.uploaded,
         )
         response = self.authorized_client.get(
             reverse('posts:group_list',
@@ -243,6 +282,7 @@ class PostPagesTest(TestCase):
         self.assertEqual(first_comment.author, new_test_comment.author)
 
 
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class PostPaginatorTest(TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -254,12 +294,26 @@ class PostPaginatorTest(TestCase):
             description='Описание тестовой группы',
             slug='test-slug',
         )
+        small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        cls.uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=small_gif,
+            content_type='image/gif'
+        )
         objs = ()
         for i in range(1, 2 * settings.NUMBER_OF_LAST_RECORDS + 1):
             objs += (Post(
                 text=f'Пост №{i}',
                 author=cls.user,
                 group=cls.test_group,
+                image=cls.uploaded,
             )),
         Post.objects.bulk_create(objs)
 
@@ -284,6 +338,11 @@ class PostPaginatorTest(TestCase):
             if all_posts_number % posts_per_page != 0
             else posts_per_page
         )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def test_posts_index_page_has_correct_number_of_records(self):
         """Check paginator: the 1st index page has correct number of posts"""

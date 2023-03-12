@@ -53,7 +53,7 @@ class TaskCreateFormTests(TestCase):
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
-        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=False)
 
     def setUp(self):
         self.authorized_client = Client()
